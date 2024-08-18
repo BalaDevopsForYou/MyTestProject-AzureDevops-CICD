@@ -1,0 +1,146 @@
+trigger:
+  branches:
+    include:
+      - master
+  paths:
+    exclude:
+      - Deploy/**
+      - azure-pipelines.yml
+pool:
+  name: 'LinuxPool'
+
+variables:
+  - name: projects
+    value: '**/*.csproj'
+  - name: buildPlatform
+    value: 'Any CPU'
+  - name: buildConfiguration
+    value: 'Release'
+  - name: artifactName
+    value: 'drop'
+  - name: ACRRegistryUrl
+    value: 'testprojectcicd.azurecr.io'
+  - name: ACRrepositoryName
+    value: 'testprojectcicd-myimage'
+  - name: ACRserviceconnectionName
+    value: 'ACRDevopsconnectionupdated'
+  - name: dockerImageTag
+    value: '$(Build.BuildId)'
+
+  - group: 'TestProjectVariables'
+
+jobs:
+- job: BuildAndTest
+  displayName: 'Build, Test, Scan, and Push Docker Image'
+  pool:
+    name: 'LinuxPool'
+
+  steps:
+  - script: |
+      echo "Checking Docker installation on Linux..."
+      if ! [ -x "$(command -v docker)" ]; then
+        echo "Docker is not installed. Installing Docker..."
+        sudo apt-get update
+        sudo apt-get install -y docker.io
+        sudo systemctl start docker
+        sudo systemctl enable docker
+        sudo usermod -aG docker $(whoami)
+      else
+        echo "Docker is already installed on Linux."
+      fi
+    displayName: 'Check and Install Docker on Linux'
+    condition: eq(variables['Agent.OS'], 'Linux')
+
+  - script: |
+      echo "Cleaning up old build artifacts and temporary files..."
+      rm -rf $(Build.ArtifactStagingDirectory)/*
+    displayName: 'Clean up old build artifacts and temporary files'
+    condition: and(succeeded(), eq(variables['Agent.OS'], 'Linux'))
+
+  - task: UseDotNet@2
+    displayName: 'Install .NET SDK 8.0'
+    inputs:
+      packageType: 'sdk'
+      version: '8.0.x'
+      installationPath: $(Agent.ToolsDirectory)/dotnet
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Restore NuGet packages'
+    inputs:
+      command: 'restore'
+      projects: '$(projects)'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Build the project'
+    inputs:
+      command: 'build'
+      projects: '$(projects)'
+      arguments: '--configuration $(buildConfiguration)'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Run unit tests and collect coverage'
+    inputs:
+      command: 'test'
+      projects: '**/*Tests/*.csproj'
+      arguments: '--configuration $(buildConfiguration) --collect:"Code Coverage"'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Publish the project'
+    inputs:
+      command: 'publish'
+      projects: '$(projects)'
+      arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/$(artifactName)'
+      publishWebProjects: false
+
+  - task: PublishBuildArtifacts@1
+    displayName: 'Publish the artifact to drop'
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(artifactName)'
+      ArtifactName: '$(artifactName)'
+      publishLocation: 'Container'
+
+  # Build the Docker image before scanning
+  - task: Docker@2
+    displayName: 'Build Docker image'
+    inputs:
+      containerRegistry: '$(ACRserviceconnectionName)'
+      repository: '$(ACRrepositoryName)'
+      command: 'build'
+      Dockerfile: 'Dockerfile'  # Adjust if Dockerfile path is different
+      buildContext: '$(Build.ArtifactStagingDirectory)/$(artifactName)'
+      tags: |
+        $(dockerImageTag)
+
+  - script: |
+      echo "Running Trivy scan..."
+      trivy image --severity CRITICAL,HIGH --exit-code 1 --no-progress testprojectcicd.azurecr.io/$(ACRrepositoryName):$(dockerImageTag)
+    displayName: 'Scan Docker Image with Trivy'
+    continueOnError: false
+
+  - task: Docker@2
+    displayName: 'Push Docker image to ACR'
+    inputs:
+      containerRegistry: '$(ACRserviceconnectionName)'
+      repository: '$(ACRrepositoryName)'
+      command: 'push'
+      tags: |
+        $(dockerImageTag)
+
+- job: UpdateDeploymentFile
+  displayName: 'Update Deployment File'
+  dependsOn: BuildAndTest
+  condition: succeeded()
+  steps:
+    - script: |
+        echo "Configuring Git..."
+        git config user.email $(GITHUB_EMAIL)
+        git config user.name  $(GIT_USER_NAME)
+
+        echo "Updating deployment file..."
+        sed -i "s|image:.*|image: $(ACRRegistryUrl)/$(ACRrepositoryName):$(Build.BuildId)|g" ./Deploy/TestProject-Deploy.yml
+
+        echo "Committing changes..."
+        git add ./Deploy/TestProject-Deploy.yml
+        git commit -m "Update deployment image to version $(Build.BuildId)"
+        git push https://$(GITHUBTOKEN)@github.com/$(GIT_USER_NAME)/$(GIT_REPO_NAME) HEAD:master
+      displayName: 'Update and Push Deployment File'
