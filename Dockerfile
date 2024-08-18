@@ -3,12 +3,12 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /app
 
 # Copy the zip file from the artifact staging directory
-COPY ./TestProject.zip /app/TestProject.zip
+COPY ./MyTestProject.zip /app/MyTestProject.zip
 
 # Extract the contents of the zip file
 RUN apt-get update && apt-get install -y unzip && \
-    unzip TestProject.zip -d . && \
-    rm TestProject.zip
+    unzip MyTestProject.zip -d . && \
+    rm MyTestProject.zip
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS base
 WORKDIR /app
@@ -20,5 +20,5 @@ COPY --from=build /app .
 EXPOSE 80
 
 # Set the entry point to run the application
-ENTRYPOINT ["dotnet", "TestProject.dll"]
+ENTRYPOINT ["dotnet", "MyTestProject.dll"]
 
