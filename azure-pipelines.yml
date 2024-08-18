@@ -90,7 +90,7 @@ jobs:
       command: 'publish'
       projects: '$(projects)'
       arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/$(artifactName)'
-      publishWebProjects: false
+      publishWebProjects: true
 
   - task: PublishBuildArtifacts@1
     displayName: 'Publish the artifact to drop'
