@@ -5,22 +5,28 @@ WORKDIR /app
 # Copy the zip file from the artifact staging directory
 COPY ./MyTestProject.zip /app/MyTestProject.zip
 
-# Extract the contents of the zip file
-RUN apt-get update && apt-get install -y unzip && \
+# Extract the contents of the zip file and clean up
+RUN apt-get update && apt-get install -y --no-install-recommends unzip && \
     unzip MyTestProject.zip -d . && \
-    rm MyTestProject.zip
+    rm MyTestProject.zip && \
+    apt-get remove -y unzip && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
+# Stage 2: Set up the runtime environment
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS base
 WORKDIR /app
 
 # Copy the extracted files from the build stage
 COPY --from=build /app .
 
-ENV ASPNETCORE_URLS=http://+:80
+# Set environment variables
+ENV ASPNETCORE_URLS=http://+:80 \
+    ASPNETCORE_ENVIRONMENT=Production
 
-# Expose the necessary port (adjust if necessary)
+# Expose the necessary port
 EXPOSE 80
 
 # Set the entry point to run the application
 ENTRYPOINT ["dotnet", "MyTestProject.dll"]
-
