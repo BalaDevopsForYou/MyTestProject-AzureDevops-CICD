@@ -16,6 +16,8 @@ WORKDIR /app
 # Copy the extracted files from the build stage
 COPY --from=build /app .
 
+ENV ASPNETCORE_URLS=http://+:80
+
 # Expose the necessary port (adjust if necessary)
 EXPOSE 80
 
