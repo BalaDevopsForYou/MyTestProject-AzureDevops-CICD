@@ -34,13 +34,12 @@ metadata:
   name: dotnet-app-svc
   namespace: testproject
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: dotnet-app
   ports:
   - port: 80
     targetPort: 80
-    nodePort: 30175
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
