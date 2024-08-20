@@ -40,24 +40,24 @@ spec:
   ports:
   - port: 80
     targetPort: 80
+
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: testproject-ingress
+  name: dotnet-app-ingress
   namespace: testproject
   annotations:
-    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   ingressClassName: nginx
   rules:
-  - host: testproject.baladevopsforyou.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: dotnet-app-svc
-            port:
-              number: 80
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dotnet-app-svc
+                port:
+                  number: 80
