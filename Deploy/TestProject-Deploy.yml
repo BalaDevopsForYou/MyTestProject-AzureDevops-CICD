@@ -42,7 +42,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: dotnet-app-ingress
-  namespace: ingress-testproject
+  namespace: myproject
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
