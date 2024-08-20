@@ -49,7 +49,7 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - www.baladevopsforyou.com
+        - baladevopsforyou.com
       secretName: testproject-tls
   rules:
     - http:
