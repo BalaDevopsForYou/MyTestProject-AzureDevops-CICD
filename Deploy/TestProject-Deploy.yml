@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
       - name: dotnet-container
-        image: testprojectcicd.azurecr.io/testprojectcicd-myimage:84
+        image: testprojectcicd.azurecr.io/testprojectcicd-myimage:85
         imagePullPolicy: Always
         ports:
         - containerPort: 80
